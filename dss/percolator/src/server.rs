@@ -4,7 +4,9 @@ use crate::*;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::cell::Cell;
+use std::ops::Bound;
 use std::time::Duration;
 
 use labrpc::RpcFuture;
@@ -18,15 +20,13 @@ const TTL: u64 = Duration::from_millis(100).as_nanos() as u64;
 
 #[derive(Clone, Default)]
 pub struct TimestampOracle {
-    timestamp: Cell<u64>
+    timestamp: Arc<AtomicU64>,
 }
 
 impl timestamp::Service for TimestampOracle {
     // example get_timestamp RPC handler.
     fn get_timestamp(&self, _: TimestampRequest) -> RpcFuture<TimestampResponse> {
-        // Your code here.
-        let ts = self.timestamp.get();
-        self.timestamp.set(self.timestamp.get() + 1);
+        let ts = self.timestamp.fetch_add(1, Ordering::SeqCst);
         let resp = TimestampResponse {
             ts
         };
@@ -72,8 +72,20 @@ impl KvTable {
         ts_start_inclusive: Option<u64>,
         ts_end_inclusive: Option<u64>,
     ) -> Option<(&Key, &Value)> {
-        // Your code here.
-        unimplemented!()
+        let col = match column {
+            Column::Write => &self.write,
+            Column::Data => &self.data,
+            Column::Lock => &self.lock,
+        };
+        let key_start = ts_start_inclusive
+                            .map(|s: u64| Bound::Included((key.clone(), s)))
+                            .unwrap_or_else(|| Bound::Unbounded);
+
+        let key_end = ts_end_inclusive
+                            .map(|s| Bound::Included((key, s)))
+                            .unwrap_or_else(|| Bound::Unbounded);
+        let mut resp = col.range((key_start, key_end));
+        resp.next()
     }
 
     // Writes a record to a specified column in MemoryStorage.
