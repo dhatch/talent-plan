@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use labrpc::RpcFuture;
 
-use futures::future;
+use futures::Future;
 
 // TTL is used for a lock key.
 // If the key's lifetime exceeds this value, it should be cleaned up.
@@ -129,9 +129,16 @@ impl MemoryStorage {
 mod tests {
     use super::*;
 
-    //#[test]
-    //fn test_get_timestamp() {
-        //let service: TimestampOracle = Default::default();
-        //let res = await!(service.get_timestamp(TimestampRequest {}));
-    //}
+    #[test]
+    fn test_get_timestamp() {
+        let service: TimestampOracle = Default::default();
+        let mut res = service.get_timestamp(TimestampRequest {}).wait();
+
+        // First timestamp will be 0.
+        assert_eq!(res.unwrap().ts, 0);
+
+        // Next timestamp should be 1.
+        res = service.get_timestamp(TimestampRequest {}).wait();
+        assert_eq!(res.unwrap().ts, 1);
+    }
 }
