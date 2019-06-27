@@ -62,6 +62,21 @@ pub struct KvTable {
 }
 
 impl KvTable {
+    fn column(&self, col: Column) -> &BTreeMap<Key, Value> {
+        match col {
+            Column::Write => &self.write,
+            Column::Data => &self.data,
+            Column::Lock => &self.lock,
+        }
+    }
+
+    fn column_mut(&mut self, col: Column) -> &mut BTreeMap<Key, Value> {
+        match col {
+            Column::Write => &mut self.write,
+            Column::Data => &mut self.data,
+            Column::Lock => &mut self.lock,
+        }
+    }
     // Reads the latest key-value record from a specified column
     // in MemoryStorage with a given key and a timestamp range.
     #[inline]
@@ -72,11 +87,7 @@ impl KvTable {
         ts_start_inclusive: Option<u64>,
         ts_end_inclusive: Option<u64>,
     ) -> Option<(&Key, &Value)> {
-        let col = match column {
-            Column::Write => &self.write,
-            Column::Data => &self.data,
-            Column::Lock => &self.lock,
-        };
+
         let key_start = ts_start_inclusive
                             .map(|s: u64| Bound::Included((key.clone(), s)))
                             .unwrap_or_else(|| Bound::Unbounded);
@@ -84,22 +95,20 @@ impl KvTable {
         let key_end = ts_end_inclusive
                             .map(|s| Bound::Included((key, s)))
                             .unwrap_or_else(|| Bound::Unbounded);
-        let mut resp = col.range((key_start, key_end));
-        resp.next()
+        let mut resp = self.column(column).range((key_start, key_end));
+        resp.rev().next()
     }
 
     // Writes a record to a specified column in MemoryStorage.
     #[inline]
     fn write(&mut self, key: Vec<u8>, column: Column, ts: u64, value: Value) {
-        // Your code here.
-        unimplemented!()
+        self.column_mut(column).insert((key, ts), value);
     }
 
     #[inline]
     // Erases a record from a specified column in MemoryStorage.
     fn erase(&mut self, key: Vec<u8>, column: Column, commit_ts: u64) {
-        // Your code here.
-        unimplemented!()
+        self.column_mut(column).remove(&(key, commit_ts));
     }
 }
 
