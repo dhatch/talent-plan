@@ -4,9 +4,12 @@ use crate::*;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::cell::Cell;
 use std::time::Duration;
 
 use labrpc::RpcFuture;
+
+use futures::future;
 
 // TTL is used for a lock key.
 // If the key's lifetime exceeds this value, it should be cleaned up.
@@ -15,14 +18,19 @@ const TTL: u64 = Duration::from_millis(100).as_nanos() as u64;
 
 #[derive(Clone, Default)]
 pub struct TimestampOracle {
-    // You definitions here if needed.
+    timestamp: Cell<u64>
 }
 
 impl timestamp::Service for TimestampOracle {
     // example get_timestamp RPC handler.
     fn get_timestamp(&self, _: TimestampRequest) -> RpcFuture<TimestampResponse> {
         // Your code here.
-        unimplemented!()
+        let ts = self.timestamp.get();
+        self.timestamp.set(self.timestamp.get() + 1);
+        let resp = TimestampResponse {
+            ts
+        };
+        Box::new(futures::future::result(Ok(resp)))
     }
 }
 
@@ -115,4 +123,15 @@ impl MemoryStorage {
         // Your code here.
         unimplemented!()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    //#[test]
+    //fn test_get_timestamp() {
+        //let service: TimestampOracle = Default::default();
+        //let res = await!(service.get_timestamp(TimestampRequest {}));
+    //}
 }

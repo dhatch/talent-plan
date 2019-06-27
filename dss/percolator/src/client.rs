@@ -1,6 +1,13 @@
+use std::thread;
+use std::time::Duration;
+
 use crate::service::{TSOClient, TransactionClient};
 
+use crate::msg::{TimestampRequest};
+
 use labrpc::*;
+use labrpc::RpcFuture;
+use futures::Future;
 
 // BACKOFF_TIME_MS is the wait time before retrying to send the request.
 // It should be exponential growth. e.g.
@@ -18,20 +25,40 @@ const RETRY_TIMES: usize = 3;
 /// The other is do the transaction logic.
 #[derive(Clone)]
 pub struct Client {
-    // Your definitions here.
+    tso_client: TSOClient,
+    txn_client: TransactionClient
 }
 
 impl Client {
     /// Creates a new Client.
     pub fn new(tso_client: TSOClient, txn_client: TransactionClient) -> Client {
         // Your code here.
-        Client {}
+        Client {
+            tso_client,
+            txn_client
+        }
+    }
+
+    fn _get_backoff(&self, attempt: usize) -> u64 {
+        BACKOFF_TIME_MS * (1 << attempt)
     }
 
     /// Gets a timestamp from a TSO.
     pub fn get_timestamp(&self) -> Result<u64> {
-        // Your code here.
-        unimplemented!()
+        let mut result = self.tso_client.get_timestamp(&TimestampRequest {}).wait();
+        for attempt in 0..(RETRY_TIMES - 1) {
+            if result.is_ok() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(self._get_backoff(attempt)));
+
+            result = self.tso_client.get_timestamp(&TimestampRequest {}).wait();
+        }
+
+        match result {
+            Ok(response) => Ok(response.ts),
+            Err(err) => Err(err)
+        }
     }
 
     /// Begins a new transaction.
